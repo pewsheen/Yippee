@@ -5,16 +5,16 @@ use servo::{
     compositing::windowing::{
         AnimationState, EmbedderCoordinates, EmbedderEvent, MouseWindowEvent, WindowMethods,
     },
-    embedder_traits::{Cursor, EmbedderMsg},
-    euclid::{Point2D, Scale, Size2D, UnknownUnit},
+    embedder_traits::{Cursor, EmbedderMsg, PromptDefinition},
+    euclid::{Point2D, Scale, Size2D},
     gl,
-    msg::constellation_msg::WebViewId,
+    msg::constellation_msg::{TraversalDirection, WebViewId},
     rendering_context::RenderingContext,
     script_traits::{TouchEventType, WheelDelta, WheelMode},
     style_traits::DevicePixel,
+    url::ServoUrl,
     webrender_api::{
-        units::{DeviceIntPoint, DeviceIntRect, DevicePoint, LayoutVector2D},
-        ScrollLocation,
+        units::{DeviceIntPoint, DeviceIntRect, DevicePoint, LayoutVector2D}, ScrollLocation,
     },
     Servo,
 };
@@ -30,6 +30,19 @@ use crate::{
     Status,
 };
 
+#[derive(Debug, Default, Clone)]
+struct WindowState {
+    histroy: HistroyState,
+}
+
+#[derive(Debug, Default, Clone)]
+struct HistroyState {
+    urls: Vec<ServoUrl>,
+    current_idx: usize,
+    can_go_back: bool,
+    can_go_forward: bool,
+}
+
 /// A Verso window is a Winit window containing several web views.
 pub struct Window {
     /// Access to winit window with webrender context.
@@ -42,6 +55,8 @@ pub struct Window {
     webrender_gl: Rc<dyn gl::Gl>,
     /// The mouse physical position in the web view.
     mouse_position: Cell<PhysicalPosition<f64>>,
+    /// Window state
+    state: WindowState,
 }
 
 impl Window {
@@ -76,6 +91,7 @@ impl Window {
             webview: None,
             webrender_gl,
             mouse_position: Cell::new(PhysicalPosition::default()),
+            state: WindowState::default(),
         }
     }
 
@@ -224,7 +240,7 @@ impl Window {
                             let size = self.window.inner_size();
                             let size = Size2D::new(size.width as i32, size.height as i32);
                             let mut rect = DeviceIntRect::from_size(size).to_f32();
-                            rect.max.y /= 10.;
+                            rect.max.y = 76.;
                             events.push(EmbedderEvent::FocusWebView(w));
                             events.push(EmbedderEvent::MoveResizeWebView(w, rect));
                         }
@@ -234,11 +250,50 @@ impl Window {
                         EmbedderMsg::WebViewFocused(w) => {
                             events.push(EmbedderEvent::ShowWebView(w, false));
                         }
-                        EmbedderMsg::HistoryChanged(..)
-                        | EmbedderMsg::ChangePageTitle(..)
-                        | EmbedderMsg::AllowNavigationRequest(..) => {
+                        EmbedderMsg::HistoryChanged(..) => {
+                            dbg!("history");
+                        }
+                        EmbedderMsg::ChangePageTitle(..) => {
                             log::trace!("Verso Panel ignores this message: {m:?}")
                         }
+                        EmbedderMsg::AllowNavigationRequest(..) => {
+                            dbg!("Navigation Request");
+                        }
+                        EmbedderMsg::Prompt(definition, _origin) => match definition {
+                            PromptDefinition::Input(mesg, _default_value, sender) => {
+                                match mesg.as_str() {
+                                    "PREV" => {
+                                        dbg!("PREV");
+                                        let main_content = self.webview.as_ref().unwrap();
+                                        let main_content_id = main_content.id();
+                                        events.push(EmbedderEvent::Navigation(
+                                            main_content_id,
+                                            TraversalDirection::Back(1),
+                                        ));
+                                        let _ = sender.send(None);
+                                    }
+                                    "FORWARD" => {
+                                        dbg!("FORWARD");
+                                        let main_content = self.webview.as_ref().unwrap();
+                                        let main_content_id = main_content.id();
+                                        events.push(EmbedderEvent::Navigation(
+                                            main_content_id,
+                                            TraversalDirection::Forward(1),
+                                        ));
+                                        let _ = sender.send(None);
+                                    }
+                                    "REFRESH" => {
+                                        dbg!("REFRESH");
+                                        let main_content = self.webview.as_ref().unwrap();
+                                        let main_content_id = main_content.id();
+                                        events.push(EmbedderEvent::Reload(main_content_id));
+                                        let _ = sender.send(None);
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            _ => (),
+                        },
                         e => {
                             log::warn!(
                                 "Verso Panel hasn't supported handling this message yet: {e:?}"
@@ -263,7 +318,7 @@ impl Window {
                             let size = self.window.inner_size();
                             let size = Size2D::new(size.width as i32, size.height as i32);
                             let mut rect = DeviceIntRect::from_size(size).to_f32();
-                            rect.min.y = rect.max.y / 10.;
+                            rect.min.y = 76.;
                             events.push(EmbedderEvent::FocusWebView(w));
                             events.push(EmbedderEvent::MoveResizeWebView(w, rect));
                         }
@@ -272,6 +327,17 @@ impl Window {
                         }
                         EmbedderMsg::WebViewFocused(w) => {
                             events.push(EmbedderEvent::ShowWebView(w, false));
+                        }
+                        EmbedderMsg::AllowNavigationRequest(id, _url) => {
+                            events.push(EmbedderEvent::AllowNavigationResponse(id, true));
+                        }
+                        EmbedderMsg::HistoryChanged(urls, current_idx) => {
+                            self.state.histroy.urls = urls.clone();
+                            self.state.histroy.current_idx = current_idx;
+                            self.state.histroy.can_go_back = current_idx > 0;
+                            self.state.histroy.can_go_forward = current_idx < urls.len() - 1;
+                            dbg!("history");
+                            dbg!(&self.state);
                         }
                         e => {
                             log::warn!(
@@ -367,12 +433,12 @@ impl Window {
         events.push(EmbedderEvent::WindowResize);
 
         let mut rect = DeviceIntRect::from_size(size).to_f32();
-        rect.max.y /= 10.;
+        rect.max.y = 76.;
         events.push(EmbedderEvent::MoveResizeWebView(self.panel.id(), rect));
 
         if let Some(w) = &self.webview {
             let mut rect = DeviceIntRect::from_size(size).to_f32();
-            rect.min.y = rect.max.y / 10.;
+            rect.min.y = 76.;
             events.push(EmbedderEvent::MoveResizeWebView(w.id(), rect));
         }
     }

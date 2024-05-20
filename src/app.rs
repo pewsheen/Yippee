@@ -52,10 +52,11 @@ impl Verso {
         );
         window.set_webview_id(init_servo.browser_id);
 
-        let demo_path = std::env::current_dir().unwrap().join("demo.html");
-        let demo_url = ServoUrl::from_file_path(demo_path.to_str().unwrap()).unwrap();
+        // let demo_path = std::env::current_dir().unwrap().join("demo.html");
+        // let demo_url = ServoUrl::from_file_path(demo_path.to_str().unwrap()).unwrap();
+        let demo_url = ServoUrl::parse("https://servo.org").unwrap();
         let demo_id = TopLevelBrowsingContextId::new();
-        let url = ServoUrl::parse("https://wusyong.github.io/").unwrap();
+        let url = ServoUrl::parse("http://localhost:5173/").unwrap();
         init_servo.servo.handle_events(vec![
             EmbedderEvent::NewWebView(url, init_servo.browser_id),
             EmbedderEvent::NewWebView(demo_url, demo_id),
