@@ -33,6 +33,7 @@ use crate::{
 
 #[derive(Debug, Default, Clone)]
 struct WindowState {
+    panel_is_ready: bool,
     histroy: HistroyState,
 }
 
@@ -235,6 +236,7 @@ impl Window {
                             need_present = false;
                         }
                         EmbedderMsg::LoadComplete => {
+                            self.state.panel_is_ready = true;
                             need_present = true;
                         }
                         EmbedderMsg::WebViewOpened(w) => {
@@ -366,6 +368,10 @@ impl Window {
 
     /// Paint offscreen framebuffer to winit window.
     pub fn paint(&self, servo: &mut Servo<GLWindow>) {
+        if !self.state.panel_is_ready {
+            return;
+        }
+
         if let Some(fbo) = servo.offscreen_framebuffer_id() {
             let viewport = self.gl_window.get_coordinates().get_flipped_viewport();
             let webrender_gl = &self.webrender_gl;
