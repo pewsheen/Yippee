@@ -56,9 +56,14 @@ impl Verso {
         // let demo_url = ServoUrl::from_file_path(demo_path.to_str().unwrap()).unwrap();
         let demo_url = ServoUrl::parse("https://servo.org").unwrap();
         let demo_id = TopLevelBrowsingContextId::new();
-        let url = ServoUrl::parse("http://localhost:5173/").unwrap();
+
+        let panel_path = std::env::current_dir()
+            .unwrap()
+            .join("navbar-src/dist/index.html");
+        let panel_url = ServoUrl::from_file_path(panel_path.to_str().unwrap()).unwrap();
+        // let panel_url = ServoUrl::parse("http://localhost:5173/").unwrap();
         init_servo.servo.handle_events(vec![
-            EmbedderEvent::NewWebView(url, init_servo.browser_id),
+            EmbedderEvent::NewWebView(panel_url, init_servo.browser_id),
             EmbedderEvent::NewWebView(demo_url, demo_id),
         ]);
         init_servo.servo.setup_logging();

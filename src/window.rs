@@ -14,7 +14,8 @@ use servo::{
     style_traits::DevicePixel,
     url::ServoUrl,
     webrender_api::{
-        units::{DeviceIntPoint, DeviceIntRect, DevicePoint, LayoutVector2D}, ScrollLocation,
+        units::{DeviceIntPoint, DeviceIntRect, DevicePoint, LayoutVector2D},
+        ScrollLocation,
     },
     Servo,
 };
@@ -250,20 +251,15 @@ impl Window {
                         EmbedderMsg::WebViewFocused(w) => {
                             events.push(EmbedderEvent::ShowWebView(w, false));
                         }
-                        EmbedderMsg::HistoryChanged(..) => {
-                            dbg!("history");
-                        }
-                        EmbedderMsg::ChangePageTitle(..) => {
+                        EmbedderMsg::HistoryChanged(..)
+                        | EmbedderMsg::AllowNavigationRequest(..)
+                        | EmbedderMsg::ChangePageTitle(..) => {
                             log::trace!("Verso Panel ignores this message: {m:?}")
-                        }
-                        EmbedderMsg::AllowNavigationRequest(..) => {
-                            dbg!("Navigation Request");
                         }
                         EmbedderMsg::Prompt(definition, _origin) => match definition {
                             PromptDefinition::Input(mesg, _default_value, sender) => {
                                 match mesg.as_str() {
                                     "PREV" => {
-                                        dbg!("PREV");
                                         let main_content = self.webview.as_ref().unwrap();
                                         let main_content_id = main_content.id();
                                         events.push(EmbedderEvent::Navigation(
@@ -273,7 +269,6 @@ impl Window {
                                         let _ = sender.send(None);
                                     }
                                     "FORWARD" => {
-                                        dbg!("FORWARD");
                                         let main_content = self.webview.as_ref().unwrap();
                                         let main_content_id = main_content.id();
                                         events.push(EmbedderEvent::Navigation(
@@ -283,7 +278,6 @@ impl Window {
                                         let _ = sender.send(None);
                                     }
                                     "REFRESH" => {
-                                        dbg!("REFRESH");
                                         let main_content = self.webview.as_ref().unwrap();
                                         let main_content_id = main_content.id();
                                         events.push(EmbedderEvent::Reload(main_content_id));
@@ -336,8 +330,6 @@ impl Window {
                             self.state.histroy.current_idx = current_idx;
                             self.state.histroy.can_go_back = current_idx > 0;
                             self.state.histroy.can_go_forward = current_idx < urls.len() - 1;
-                            dbg!("history");
-                            dbg!(&self.state);
                         }
                         e => {
                             log::warn!(
